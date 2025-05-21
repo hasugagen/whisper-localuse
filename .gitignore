@@ -26,9 +26,6 @@ ENV/
 # IDE
 .idea/
 
-# Build and distribution
-*.spec
-
 # Runtime data
 
 # Custom
