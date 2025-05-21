@@ -32,11 +32,11 @@ Python 3.8以上をインストールしてください。
 
 ```bash
 # 仮想環境の作成
-python -m venv venv
+python -m venv .venv
 
 # 仮想環境の有効化
 # Windowsの場合
-venv\Scripts\activate
+.venv\Scripts\activate
 # macOS/Linuxの場合
 # source venv/bin/activate
 ```
