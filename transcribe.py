@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Whisperを使用した音声文字起こしスクリプト (m4a形式対応版)
+Whisperを使用した音声文字起こしスクリプト (m4a形式対応版) - 最適化版
 """
 
 import os
@@ -9,14 +9,13 @@ import argparse
 import sys
 from datetime import datetime
 import logging
-import json
-from typing import List, Dict, Optional, Union, Any
+import tempfile
+from typing import List, Dict, Optional
 import subprocess
 import numpy as np
-import tempfile
 from pydub import AudioSegment
 
-# 依存ライブラリのインポート (エラーハンドリングのためtry-exceptで囲む)
+# 依存ライブラリのインポート
 try:
     import whisper
     from pyannote.audio import Pipeline
@@ -32,37 +31,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 環境変数の設定
-os.environ['PYTHONIOENCODING'] = 'utf-8'
-os.environ["PYTHONUTF8"] = "1"
-os.environ['HUGGINGFACE_HUB_CACHE'] = str(pathlib.Path("./tmp/assets").absolute())
-
-# Windows環境での文字コード対応を追加
-if sys.platform.startswith('win'):
-    # Windows環境ではコンソール出力の文字コードを設定
-    try:
-        import ctypes
-        # コンソールのCPをUTF-8に設定
-        if hasattr(ctypes, 'windll') and hasattr(ctypes.windll, 'kernel32'):
-            ctypes.windll.kernel32.SetConsoleCP(65001)
-            ctypes.windll.kernel32.SetConsoleOutputCP(65001)
-            logger.info("コンソールの文字コードをUTF-8に設定しました")
-    except Exception as e:
-        logger.warning(f"コンソールの文字コード設定に失敗しました: {e}")
+def setup_encoding():
+    """文字コード設定を行う"""
+    # 環境変数の設定
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+    os.environ["PYTHONUTF8"] = "1"
+    os.environ['HUGGINGFACE_HUB_CACHE'] = str(pathlib.Path("./tmp/assets").absolute())
     
-    # Python 3.7+ で標準入出力のエンコーディングをUTF-8に設定
-if sys.version_info >= (3, 7):
-    sys.stdout.reconfigure(encoding='utf-8')
-    sys.stderr.reconfigure(encoding='utf-8')
+    # # Windows環境での文字コード対応
+    # if sys.platform.startswith('win'):
+    #     try:
+    #         import ctypes
+    #         if hasattr(ctypes, 'windll') and hasattr(ctypes.windll, 'kernel32'):
+    #             ctypes.windll.kernel32.SetConsoleCP(65001)
+    #             ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+    #             logger.info("コンソールの文字コードをUTF-8に設定しました")
+    #     except Exception as e:
+    #         logger.warning(f"コンソールの文字コード設定に失敗しました: {e}")
+    
+    # # Python 3.7+ で標準入出力のエンコーディングをUTF-8に設定
+    # if sys.version_info >= (3, 7):
+    #     sys.stdout.reconfigure(encoding='utf-8')
+    #     sys.stderr.reconfigure(encoding='utf-8')
 
 class Config:
     """アプリケーションの設定を管理するクラス"""
     
-    def __init__(self, config_file: Optional[str] = None):
-        self.config_file = config_file or "./tmp/assets/config.yaml"
+    def __init__(self):
         self.models = ["tiny", "base", "small", "medium", "large"]
         self.default_model = "base"
         self.output_dir = "output"
+        self.config_file = "./tmp/assets/config.yaml"  # 話者分離用設定ファイル
         
     def get_available_models(self) -> List[str]:
         """利用可能なモデルの一覧を返す"""
@@ -75,6 +74,7 @@ class AudioProcessor:
         self.config = config
         self.model = None
         self.pipeline = None
+        self._temp_files = []  # 一時ファイル管理用
         
     def load_model(self, model_name: str) -> bool:
         """Whisperモデルを読み込む"""
@@ -85,10 +85,10 @@ class AudioProcessor:
             logger.error(f"モデルの読み込みに失敗しました: {e}")
             return False
             
-    def load_diarization_pipeline(self) -> bool:
+    def load_diarization_pipeline(self, config_file: str = "./tmp/assets/config.yaml") -> bool:
         """話者分離パイプラインを読み込む"""
         try:
-            pipeline = Pipeline.from_pretrained(self.config.config_file)
+            pipeline = Pipeline.from_pretrained(config_file)
             self.pipeline = pipeline
             return True
         except Exception as e:
@@ -96,58 +96,55 @@ class AudioProcessor:
             return False
     
     def convert_to_wav(self, file_path: str) -> str:
-        """
-        音声ファイルをWAV形式に変換する
-        必要に応じてm4aなどの形式をwavに変換し、一時ファイルパスを返す
-        """
+        """音声ファイルをWAV形式に変換する"""
+        file_ext = os.path.splitext(file_path)[1].lower()
+        
+        # wavファイルならそのまま返す
+        if file_ext == '.wav':
+            return file_path
+            
+        # 一時ファイルを作成
+        temp_wav = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        temp_wav_path = temp_wav.name
+        temp_wav.close()
+        self._temp_files.append(temp_wav_path)
+        
+        logger.info(f"ファイル形式 {file_ext} を WAV に変換しています...")
+        
         try:
-            file_ext = os.path.splitext(file_path)[1].lower()
-            
-            # wavファイルならそのまま返す
-            if file_ext == '.wav':
-                return file_path
-                
-            # 一時ファイルを作成
-            temp_wav = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-            temp_wav_path = temp_wav.name
-            temp_wav.close()
-            
-            logger.info(f"ファイル形式 {file_ext} を WAV に変換しています...")
-            
-            # コマンドにstdoutとstderrのエンコーディングを設定（Windows対応）
-            cmd_env = os.environ.copy()
-            if sys.platform.startswith('win'):
-                cmd_env["PYTHONIOENCODING"] = "utf-8"
-            
             # FFmpegを使用して変換
             cmd = [
-                "ffmpeg", 
-                "-y",  # 既存ファイルを上書き
-                "-i", file_path,  # 入力ファイル
-                "-ar", "16000",  # サンプルレート
-                "-ac", "1",      # チャンネル数
-                "-c:a", "pcm_s16le",  # コーデック
-                temp_wav_path    # 出力ファイル
+                "ffmpeg", "-y", "-i", file_path,
+                "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le",
+                temp_wav_path
             ]
             
-            # Windows環境ではtext=Falseを使用してバイナリモードで実行
-            process = subprocess.run(
-                cmd, 
-                capture_output=True, 
-                text=False,
-                check=True,
-                env=cmd_env
-            )
-            
+            subprocess.run(cmd, capture_output=True, check=True)
             logger.info(f"WAV変換が完了しました: {temp_wav_path}")
             return temp_wav_path
             
         except subprocess.CalledProcessError as e:
-            logger.error(f"FFmpegでの変換に失敗しました: {e.stderr}")
+            logger.error(f"FFmpegでの変換に失敗しました")
             return file_path
         except Exception as e:
             logger.error(f"ファイル変換中にエラーが発生しました: {e}")
             return file_path
+    
+    def load_audio_data(self, wav_path: str) -> np.ndarray:
+        """音声データを読み込む（共通処理）"""
+        try:
+            audio = whisper.load_audio(wav_path)
+            logger.info("whisper.load_audioでの読み込みが完了しました")
+            return audio
+        except Exception as e:
+            logger.error(f"whisper.load_audioでの読み込みに失敗しました: {e}")
+            logger.info("AudioSegment.from_fileによる読み込みを試みます...")
+            
+            # 代替手段としてpydubを使用
+            audio_segment = AudioSegment.from_file(wav_path)
+            audio = np.array(audio_segment.get_array_of_samples()).astype(np.float32) / 32768.0
+            logger.info("AudioSegmentでの読み込みが完了しました")
+            return audio
             
     def transcribe(self, file_path: str, language: Optional[str] = None) -> str:
         """音声ファイルを文字起こしする"""
@@ -157,36 +154,17 @@ class AudioProcessor:
             # 音声ファイルをWAV形式に変換（必要な場合）
             wav_path = self.convert_to_wav(file_path)
             
-            # 変換したファイルを読み込む
+            # 音声データを読み込む
             logger.info(f"音声ファイル '{wav_path}' の読み込みを開始します...")
-            try:
-                audio = whisper.load_audio(wav_path)
-                logger.info(f"音声ファイルの読み込みが完了しました")
-            except Exception as e:
-                logger.error(f"whisper.load_audioでの読み込みに失敗しました: {e}")
-                logger.info("AudioSegment.from_fileによる読み込みを試みます...")
-                
-                # 代替手段としてpydubを使用
-                audio_segment = AudioSegment.from_file(wav_path)
-                # Whisperが期待する形式に変換
-                audio = np.array(audio_segment.get_array_of_samples()).astype(np.float32) / 32768.0
-                logger.info("AudioSegmentでの読み込みが完了しました")
+            audio = self.load_audio_data(wav_path)
             
             logger.info("文字起こしを開始します...")
             result = self.model.transcribe(
                 audio=audio,
                 language=language,
-                fp16=False  # CPU使用時はFalse推奨
+                fp16=False
             )
             logger.info("文字起こしが完了しました")
-            
-            # 一時ファイルのクリーンアップ
-            if wav_path != file_path and os.path.exists(wav_path):
-                try:
-                    os.unlink(wav_path)
-                    logger.info(f"一時ファイル {wav_path} を削除しました")
-                except Exception as e:
-                    logger.warning(f"一時ファイルの削除に失敗しました: {e}")
             
             return result.get("text", "")
         except Exception as e:
@@ -222,18 +200,21 @@ class AudioProcessor:
                 })
             logger.info(f"話者セグメントの処理が完了しました。検出された話者数: {len(set(seg['speaker'] for seg in segments))}")
             
-            # 一時ファイルのクリーンアップ
-            if wav_path != audio_path and os.path.exists(wav_path):
-                try:
-                    os.unlink(wav_path)
-                    logger.info(f"一時ファイル {wav_path} を削除しました")
-                except Exception as e:
-                    logger.warning(f"一時ファイルの削除に失敗しました: {e}")
-            
             return segments
         except Exception as e:
             logger.error(f"話者分離に失敗しました: {e}")
             return []
+    
+    def cleanup_temp_files(self):
+        """一時ファイルをクリーンアップ"""
+        for temp_file in self._temp_files:
+            if os.path.exists(temp_file):
+                try:
+                    os.unlink(temp_file)
+                    logger.info(f"一時ファイル {temp_file} を削除しました")
+                except Exception as e:
+                    logger.warning(f"一時ファイルの削除に失敗しました: {e}")
+        self._temp_files.clear()
 
 class Transcriber:
     """文字起こし処理を管理するクラス"""
@@ -258,113 +239,7 @@ class Transcriber:
             logger.info(f"モデル '{model_name}' の読み込みが完了しました")
                 
             if diarize:
-                logger.info("話者分離を開始します...")
-                speaker_segments = self.audio_processor.diarize_speakers(file_path)
-                logger.info("話者分離が完了しました")
-                
-                if not speaker_segments:
-                    logger.warning("話者分離に失敗したため、通常の文字起こしにフォールバックします")
-                    return self.audio_processor.transcribe(file_path, language)
-                
-                # 音声ファイルをWAV形式に変換（必要な場合）
-                wav_path = self.audio_processor.convert_to_wav(file_path)
-                
-                # 変換したファイルを読み込む
-                logger.info(f"音声ファイル '{wav_path}' の読み込みを開始します...")
-                try:
-                    audio = whisper.load_audio(wav_path)
-                    logger.info("音声ファイルの読み込みが完了しました")
-                except Exception as e:
-                    logger.error(f"whisper.load_audioでの読み込みに失敗しました: {e}")
-                    logger.info("AudioSegment.from_fileによる読み込みを試みます...")
-                    
-                    # 代替手段としてpydubを使用
-                    audio_segment = AudioSegment.from_file(wav_path)
-                    # Whisperが期待する形式に変換
-                    audio_data = np.array(audio_segment.get_array_of_samples()).astype(np.float32) / 32768.0
-                    logger.info("AudioSegmentでの読み込みが完了しました")
-                    
-                logger.info("話者別の文字起こしを開始します...")
-                results = []
-                
-                # 各話者のセグメントについて文字起こしを実行
-                for i, segment_info in enumerate(speaker_segments, 1):
-                    start_time_ms = segment_info['start']
-                    end_time_ms = segment_info['end']
-                    speaker = segment_info['speaker']
-                    
-                    # セグメントの開始・終了時間をサンプル数に変換
-                    start_sample = int(start_time_ms * 16)  # 16kHzなので1msあたり16サンプル
-                    end_sample = int(end_time_ms * 16)
-                    
-                    # 音声データのセグメントを切り出し
-                    if 'audio_data' in locals():
-                        # pydubから変換したデータを使用
-                        if start_sample < len(audio_data) and end_sample <= len(audio_data):
-                            segment_audio = audio_data[start_sample:end_sample]
-                        else:
-                            logger.warning(f"セグメント範囲が音声データの範囲外です: {start_sample}:{end_sample}, len={len(audio_data)}")
-                            continue
-                    else:
-                        # whisper.load_audioから読み込んだデータを使用
-                        if start_sample < len(audio) and end_sample <= len(audio):
-                            segment_audio = audio[start_sample:end_sample]
-                        else:
-                            logger.warning(f"セグメント範囲が音声データの範囲外です: {start_sample}:{end_sample}, len={len(audio)}")
-                            continue
-                    
-                    # セグメントが短すぎる場合はスキップ
-                    if len(segment_audio) < 1600:  # 100ms未満はスキップ
-                        logger.info(f"セグメント {i} は短すぎるためスキップします（{len(segment_audio)} サンプル）")
-                        continue
-                    
-                    # 文字起こし実行
-                    logger.info(f"話者 {speaker} のセグメント {i}/{len(speaker_segments)} の文字起こしを開始します...")
-                    try:
-                        transcription_result = self.audio_processor.model.transcribe(
-                            segment_audio,
-                            language=language,
-                            verbose=None,
-                            fp16=False
-                        )
-                        logger.info(f"話者 {speaker} のセグメント {i}/{len(speaker_segments)} の文字起こしが完了しました")
-                        
-                        # 結果を追加
-                        text = transcription_result['text'].strip()
-                        if text:
-                            results.append({
-                                'speaker': speaker,
-                                'start_s': start_time_ms / 1000.0,
-                                'end_s': end_time_ms / 1000.0,
-                                'text': text
-                            })
-                    except Exception as e:
-                        logger.error(f"セグメント {i} の文字起こしに失敗しました: {e}")
-                
-                # 一時ファイルのクリーンアップ
-                if 'wav_path' in locals() and wav_path != file_path and os.path.exists(wav_path):
-                    try:
-                        os.unlink(wav_path)
-                        logger.info(f"一時ファイル {wav_path} を削除しました")
-                    except Exception as e:
-                        logger.warning(f"一時ファイルの削除に失敗しました: {e}")
-                
-                logger.info("話者別の文字起こしが完了しました")
-                
-                # 結果が空の場合は通常の文字起こしにフォールバック
-                if not results:
-                    logger.warning("話者別文字起こしの結果が空のため、通常の文字起こしにフォールバックします")
-                    return self.audio_processor.transcribe(file_path, language)
-                
-                # 結果を開始時間でソート
-                results.sort(key=lambda x: x['start_s'])
-                
-                # 結果を整形して返す
-                return "\n".join(
-                    f"話者 {r['speaker']} [{r['start_s']:.2f}s - {r['end_s']:.2f}s]: {r['text']}"
-                    for r in results
-                )
-                
+                return self._transcribe_with_diarization(file_path, language)
             else:
                 logger.info("通常の文字起こしを開始します...")
                 transcription_text = self.audio_processor.transcribe(file_path, language)
@@ -374,20 +249,101 @@ class Transcriber:
         except Exception as e:
             logger.error(f"文字起こし処理中にエラーが発生しました: {e}", exc_info=True)
             return ""
+        finally:
+            # 一時ファイルのクリーンアップ
+            self.audio_processor.cleanup_temp_files()
+    
+    def _transcribe_with_diarization(self, file_path: str, language: Optional[str]) -> str:
+        """話者分離付き文字起こしを実行"""
+        logger.info("話者分離を開始します...")
+        speaker_segments = self.audio_processor.diarize_speakers(file_path)
+        logger.info("話者分離が完了しました")
+        
+        if not speaker_segments:
+            logger.warning("話者分離に失敗したため、通常の文字起こしにフォールバックします")
+            return self.audio_processor.transcribe(file_path, language)
+        
+        # 音声ファイルをWAV形式に変換（必要な場合）
+        wav_path = self.audio_processor.convert_to_wav(file_path)
+        
+        # 音声データを読み込む
+        logger.info(f"音声ファイル '{wav_path}' の読み込みを開始します...")
+        audio = self.audio_processor.load_audio_data(wav_path)
+        
+        logger.info("話者別の文字起こしを開始します...")
+        results = []
+        
+        # 各話者のセグメントについて文字起こしを実行
+        for i, segment_info in enumerate(speaker_segments, 1):
+            start_time_ms = segment_info['start']
+            end_time_ms = segment_info['end']
+            speaker = segment_info['speaker']
+            
+            # セグメントの開始・終了時間をサンプル数に変換
+            start_sample = int(start_time_ms * 16)  # 16kHzなので1msあたり16サンプル
+            end_sample = int(end_time_ms * 16)
+            
+            # 音声データのセグメントを切り出し
+            if start_sample < len(audio) and end_sample <= len(audio):
+                segment_audio = audio[start_sample:end_sample]
+            else:
+                logger.warning(f"セグメント範囲が音声データの範囲外です: {start_sample}:{end_sample}, len={len(audio)}")
+                continue
+            
+            # セグメントが短すぎる場合はスキップ
+            if len(segment_audio) < 1600:  # 100ms未満はスキップ
+                logger.info(f"セグメント {i} は短すぎるためスキップします（{len(segment_audio)} サンプル）")
+                continue
+            
+            # 文字起こし実行
+            logger.info(f"話者 {speaker} のセグメント {i}/{len(speaker_segments)} の文字起こしを開始します...")
+            try:
+                transcription_result = self.audio_processor.model.transcribe(
+                    segment_audio,
+                    language=language,
+                    verbose=None,
+                    fp16=False
+                )
+                logger.info(f"話者 {speaker} のセグメント {i}/{len(speaker_segments)} の文字起こしが完了しました")
+                
+                # 結果を追加
+                text = transcription_result['text'].strip()
+                if text:
+                    results.append({
+                        'speaker': speaker,
+                        'start_s': start_time_ms / 1000.0,
+                        'end_s': end_time_ms / 1000.0,
+                        'text': text
+                    })
+            except Exception as e:
+                logger.error(f"セグメント {i} の文字起こしに失敗しました: {e}")
+        
+        logger.info("話者別の文字起こしが完了しました")
+        
+        # 結果が空の場合は通常の文字起こしにフォールバック
+        if not results:
+            logger.warning("話者別文字起こしの結果が空のため、通常の文字起こしにフォールバックします")
+            return self.audio_processor.transcribe(file_path, language)
+        
+        # 結果を開始時間でソート
+        results.sort(key=lambda x: x['start_s'])
+        
+        # 結果を整形して返す
+        return "\n".join(
+            f"話者 {r['speaker']} [{r['start_s']:.2f}s - {r['end_s']:.2f}s]: {r['text']}"
+            for r in results
+        )
 
 def check_ffmpeg() -> bool:
     """FFmpegの存在を確認する"""
     try:
-        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True, text=False)
+        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
         logger.info("FFmpegが正常に動作します")
-        # FFmpegのバージョン情報を表示（バイナリ出力を安全にデコード）
-        try:
-            version_line = result.stdout.split(b'\n')[0].decode('utf-8', errors='ignore') if result.stdout else "バージョン情報なし"
-        except Exception:
-            version_line = "バージョン情報の取得に失敗"
+        # FFmpegのバージョン情報を表示
+        version_line = result.stdout.split(b'\n')[0].decode('utf-8', errors='ignore') if result.stdout else "バージョン情報なし"
         logger.info(f"FFmpeg version: {version_line}")
         return True
-    except subprocess.SubprocessError as e:
+    except subprocess.CalledProcessError as e:
         logger.error(f"FFmpegの実行に失敗しました: {e}")
         return False
     except Exception as e:
@@ -431,12 +387,11 @@ def save_transcription(text: str, output_file: str, output_dir: str) -> bool:
         else:
             os.makedirs(output_dir, exist_ok=True)
             
-        # 文字エンコーディングエラーを回避するためにエラー処理を追加
+        # UTF-8で書き込み、エラー時はシステムデフォルトエンコーディングを使用
         try:
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(text)
         except UnicodeEncodeError:
-            # UTF-8で書き込めない場合、システムのデフォルトエンコーディングを試す
             with open(output_file, 'w', encoding=sys.getdefaultencoding(), errors='replace') as f:
                 f.write(text)
                 
@@ -448,6 +403,9 @@ def save_transcription(text: str, output_file: str, output_dir: str) -> bool:
 
 def main():
     """メイン関数"""
+    # 文字コード設定の初期化
+    setup_encoding()
+    
     # 設定のロード
     config = Config()
     
