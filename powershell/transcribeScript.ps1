@@ -1,59 +1,69 @@
-# --- è¨­å®šé …ç›® ---
-$SourceFolder = "C:\whisperTranscribe\TranscribeInput"      # ã‚³ãƒ”ãƒ¼å…ƒã®ãƒ•ã‚©ãƒ«ãƒ€ãƒ‘ã‚¹
-$DestinationFolder = "C:\whisperTranscribe\Transcribing" # ã‚³ãƒ”ãƒ¼å…ˆã®ãƒ•ã‚©ãƒ«ãƒ€ãƒ‘ã‚¹
-# ä½¿ç”¨ã™ã‚‹ã‚¿ã‚¤ãƒ ã‚¹ã‚¿ãƒ³ãƒ—ã®ç¨®é¡: "LastWriteTime" (æœ€çµ‚æ›´æ–°æ—¥æ™‚) ã¾ãŸã¯ "CreationTime" (ä½œæˆæ—¥æ™‚)
+# --- İ’è€–Ú ---
+$SourceFolder = "C:\whisperTranscribe\TranscribeInput"      # ƒRƒs[Œ³‚ÌƒtƒHƒ‹ƒ_ƒpƒX
+$DestinationFolder = "C:\whisperTranscribe\Transcribing" # ƒRƒs[æ‚ÌƒtƒHƒ‹ƒ_ƒpƒX
+$EndFolder = "C:\whisperTranscribe\TranscribeEnd"      # ˆ—Š®—¹Œã‚Ìƒtƒ@ƒCƒ‹ˆÚ“®æƒtƒHƒ‹ƒ_
+# g—p‚·‚éƒ^ƒCƒ€ƒXƒ^ƒ“ƒv‚Ìí—Ş: "LastWriteTime" (ÅIXV“ú) ‚Ü‚½‚Í "CreationTime" (ì¬“ú)
 $TimestampProperty = "LastWriteTime"
 
-# transcribe ã‚³ãƒãƒ³ãƒ‰é–¢é€£ã®è¨­å®š
-$TranscribeCommandName = "C:\whisperTranscribe\transcribe.exe" # transcribeã‚³ãƒãƒ³ãƒ‰ã®ãƒ•ã‚¡ã‚¤ãƒ«å (å¿…è¦ã«å¿œã˜ã¦æ‹¡å¼µå­ .exe ãªã©ã‚‚)
+# transcribe ƒRƒ}ƒ“ƒhŠÖ˜A‚Ìİ’è
+$TranscribeCommandName = "C:\whisperTranscribe\transcribe_onefile.exe" # transcribeƒRƒ}ƒ“ƒh‚Ìƒtƒ@ƒCƒ‹–¼ (•K—v‚É‰‚¶‚ÄŠg’£q .exe ‚È‚Ç‚à)
 $TranscribeOutputDir = "C:\whisperTranscribe\TranscribeOutput"
 
-# è¨­å®šé …ç›®ã®è¿½åŠ 
-$LogFolder = "C:\whisperTranscribe\Logs"  # ãƒ­ã‚°ãƒ•ã‚¡ã‚¤ãƒ«ã®ä¿å­˜å…ˆãƒ•ã‚©ãƒ«ãƒ€
-$LogFilePrefix = "transcribe_log_"          # ãƒ­ã‚°ãƒ•ã‚¡ã‚¤ãƒ«ã®ãƒ—ãƒ¬ãƒ•ã‚£ãƒƒã‚¯ã‚¹
+# İ’è€–Ú‚Ì’Ç‰Á
+$LogFolder = "C:\whisperTranscribe\Logs"  # ƒƒOƒtƒ@ƒCƒ‹‚Ì•Û‘¶æƒtƒHƒ‹ƒ_
+$LogFilePrefix = "transcribe_log_"          # ƒƒOƒtƒ@ƒCƒ‹‚ÌƒvƒŒƒtƒBƒbƒNƒX
 
-# â˜…â˜…â˜… å«ã‚ãŸã„æ‹¡å¼µå­ã®ãƒªã‚¹ãƒˆ (ãƒ‰ãƒƒãƒˆãªã—ã§å°æ–‡å­—ã§æŒ‡å®š) â˜…â˜…â˜…
+# ššš ŠÜ‚ß‚½‚¢Šg’£q‚ÌƒŠƒXƒg (ƒhƒbƒg‚È‚µ‚Å¬•¶š‚Åw’è) ššš
 $IncludedExtensions = @("wav", "mp3", "m4a", "ogg", "flac", "aac", "wma", "mp4") 
-# --- è¨­å®šé …ç›®ã“ã“ã¾ã§ ---
+# --- İ’è€–Ú‚±‚±‚Ü‚Å ---
 
 
-# å„ç¨®ãƒ•ã‚©ãƒ«ãƒ€ã®å­˜åœ¨ç¢ºèªã¨ä½œæˆ
+# ŠeíƒtƒHƒ‹ƒ_‚Ì‘¶İŠm”F‚Æì¬
 if (-not (Test-Path $DestinationFolder)) {
     New-Item -ItemType Directory -Path $DestinationFolder | Out-Null
-    Write-Host "ã‚³ãƒ”ãƒ¼å…ˆãƒ•ã‚©ãƒ«ãƒ€ã‚’ä½œæˆã—ã¾ã—ãŸ: $DestinationFolder"
+    Write-Host "ƒRƒs[æƒtƒHƒ‹ƒ_‚ğì¬‚µ‚Ü‚µ‚½: $DestinationFolder"
 }
 if (-not (Test-Path $TranscribeOutputDir)) {
     try {
         New-Item -ItemType Directory -Path $TranscribeOutputDir -Force -ErrorAction Stop | Out-Null
-        Write-Host "transcribeå‡ºåŠ›ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã‚’ä½œæˆã—ã¾ã—ãŸ: $TranscribeOutputDir"
+        Write-Host "transcribeo—ÍƒfƒBƒŒƒNƒgƒŠ‚ğì¬‚µ‚Ü‚µ‚½: $TranscribeOutputDir"
     } catch {
-        Write-Error "ã‚¨ãƒ©ãƒ¼: transcribeå‡ºåŠ›ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒª '$TranscribeOutputDir' ã®ä½œæˆã«å¤±æ•—ã—ã¾ã—ãŸã€‚ã‚¹ã‚¯ãƒªãƒ—ãƒˆã‚’çµ‚äº†ã—ã¾ã™ã€‚"
+        Write-Error "ƒGƒ‰[: transcribeo—ÍƒfƒBƒŒƒNƒgƒŠ '$TranscribeOutputDir' ‚Ìì¬‚É¸”s‚µ‚Ü‚µ‚½BƒXƒNƒŠƒvƒg‚ğI—¹‚µ‚Ü‚·B"
+        exit 1
+    }
+}
+if (-not (Test-Path $EndFolder)) {
+    try {
+        New-Item -ItemType Directory -Path $EndFolder -Force -ErrorAction Stop | Out-Null
+        Write-Host "ˆ—Š®—¹ƒtƒ@ƒCƒ‹Ši”[ƒfƒBƒŒƒNƒgƒŠ‚ğì¬‚µ‚Ü‚µ‚½: $EndFolder"
+    } catch {
+        Write-Error "ƒGƒ‰[: ˆ—Š®—¹ƒtƒ@ƒCƒ‹Ši”[ƒfƒBƒŒƒNƒgƒŠ '$EndFolder' ‚Ìì¬‚É¸”s‚µ‚Ü‚µ‚½BƒXƒNƒŠƒvƒg‚ğI—¹‚µ‚Ü‚·B"
         exit 1
     }
 }
 if (-not (Test-Path $LogFolder)) {
     New-Item -ItemType Directory -Path $LogFolder | Out-Null
-    Write-Host "ãƒ­ã‚°ãƒ•ã‚©ãƒ«ãƒ€ã‚’ä½œæˆã—ã¾ã—ãŸ: $LogFolder"
+    Write-Host "ƒƒOƒtƒHƒ‹ƒ_‚ğì¬‚µ‚Ü‚µ‚½: $LogFolder"
 }
 
 $FilesToCopy = Get-ChildItem -Path $SourceFolder -File | Sort-Object -Property $TimestampProperty
 
 if ($FilesToCopy.Count -eq 0) {
-    Write-Host "ã‚³ãƒ”ãƒ¼å…ƒãƒ•ã‚©ãƒ«ãƒ€ã«ãƒ•ã‚¡ã‚¤ãƒ«ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“: $SourceFolder"
+    Write-Host "ƒRƒs[Œ³ƒtƒHƒ‹ƒ_‚Éƒtƒ@ƒCƒ‹‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ: $SourceFolder"
     exit
 }
 
-Write-Host "ä»¥ä¸‹ã®ãƒ•ã‚¡ã‚¤ãƒ«ã‚’å¤ã„é †ã«å‡¦ç†ã—ã¾ã™:"
+Write-Host "ˆÈ‰º‚Ìƒtƒ@ƒCƒ‹‚ğŒÃ‚¢‡‚Éˆ—‚µ‚Ü‚·:"
 $FilesToCopy | ForEach-Object { Write-Host ("  " + $_.Name + " (" + ($_.($TimestampProperty)) + ")") }
 Write-Host "---"
 
-# 1ãƒ•ã‚¡ã‚¤ãƒ«ãšã¤å‡¦ç†
+# 1ƒtƒ@ƒCƒ‹‚¸‚Âˆ—
 foreach ($File in $FilesToCopy) {
     $FileName = $File.Name
     $FileExtension = $File.Extension.TrimStart('.').ToLower()
 
     if ($IncludedExtensions -contains $FileExtension) {
-        Write-Host "å‡¦ç†å¯¾è±¡ (æ‹¡å¼µå­ '$FileExtension' ãŒä¸€è‡´): $FileName ..."
+        Write-Host "ˆ—‘ÎÛ (Šg’£q '$FileExtension' ‚ªˆê’v): $FileName ..."
 
         $RobocopyArgs = @(
             $SourceFolder,
@@ -64,18 +74,18 @@ foreach ($File in $FilesToCopy) {
             "/R:3", "/W:5"
         )
         
-        Write-Host "Robocopyå®Ÿè¡Œã‚³ãƒãƒ³ãƒ‰: robocopy.exe $($RobocopyArgs -join ' ')"
+        Write-Host "RobocopyÀsƒRƒ}ƒ“ƒh: robocopy.exe $($RobocopyArgs -join ' ')"
         
         $robocopyProcess = Start-Process -FilePath "robocopy.exe" -ArgumentList $RobocopyArgs -Wait -NoNewWindow -PassThru
         
         if ($robocopyProcess.ExitCode -lt 8) {
-            Write-Host "Robocopyã«ã‚ˆã‚‹ç§»å‹•å®Œäº† (çµ‚äº†ã‚³ãƒ¼ãƒ‰: $($robocopyProcess.ExitCode)): $FileName"
+            Write-Host "Robocopy‚É‚æ‚éˆÚ“®Š®—¹ (I—¹ƒR[ƒh: $($robocopyProcess.ExitCode)): $FileName"
             Write-Host "---"
 
-            # --- å¾Œç¶šã®transcribeã‚³ãƒãƒ³ãƒ‰ã‚’å®Ÿè¡Œ ---
-            Write-Host "transcribeã‚³ãƒãƒ³ãƒ‰ã‚’å®Ÿè¡Œã—ã¾ã™ (å¯¾è±¡ãƒ•ã‚¡ã‚¤ãƒ«: $FileName)..."
+            # --- Œã‘±‚ÌtranscribeƒRƒ}ƒ“ƒh‚ğÀs ---
+            Write-Host "transcribeƒRƒ}ƒ“ƒh‚ğÀs‚µ‚Ü‚· (‘ÎÛƒtƒ@ƒCƒ‹: $FileName)..."
             
-            # ãƒ­ã‚°ãƒ•ã‚¡ã‚¤ãƒ«åã®ç”Ÿæˆ
+            # ƒƒOƒtƒ@ƒCƒ‹–¼‚Ì¶¬
             $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
             $LogFile = Join-Path -Path $LogFolder -ChildPath "${LogFilePrefix}${timestamp}.txt"
             
@@ -89,40 +99,88 @@ foreach ($File in $FilesToCopy) {
                 "--diarize",
                 "--output_dir", "$TranscribeOutputDir"
             )
-            Write-Host "Transcribeå®Ÿè¡Œã‚³ãƒãƒ³ãƒ‰: $TranscribeCommandFullPath $($TranscribeArgs -join ' ')"
+            Write-Host "TranscribeÀsƒRƒ}ƒ“ƒh: $TranscribeCommandFullPath $($TranscribeArgs -join ' ')"
             try {
-                # ä¿®æ­£: RedirectStandardOutputã¨RedirectStandardErrorã«åŒã˜ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ä½¿ã‚ãªã„
-                $stdOutFile = Join-Path -Path $LogFolder -ChildPath "${LogFilePrefix}${timestamp}_stdout.txt"
-                $stdErrFile = Join-Path -Path $LogFolder -ChildPath "${LogFilePrefix}${timestamp}_stderr.txt"
+                # ˆêƒtƒ@ƒCƒ‹‚ğì¬
+                $stdOutFile = [System.IO.Path]::GetTempFileName()
+                $stdErrFile = [System.IO.Path]::GetTempFileName()
                 
-                $transcribeRunProcess = Start-Process -FilePath $TranscribeCommandFullPath -ArgumentList $TranscribeArgs -Wait -NoNewWindow -PassThru -RedirectStandardOutput $stdOutFile -RedirectStandardError $stdErrFile -ErrorAction Stop
+                # •W€o—Í‚Æ•W€ƒGƒ‰[‚ğ•ÊX‚Ìƒtƒ@ƒCƒ‹‚ÉƒŠƒ_ƒCƒŒƒNƒg
+                $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+                $processInfo.FileName = $TranscribeCommandFullPath
+                $processInfo.Arguments = $TranscribeArgs
+                $processInfo.RedirectStandardOutput = $true
+                $processInfo.RedirectStandardError = $true
+                $processInfo.UseShellExecute = $false
+                $processInfo.CreateNoWindow = $true
                 
-                # å®Ÿè¡Œå¾Œã«ãƒ­ã‚°ã‚’ãƒãƒ¼ã‚¸
-                Get-Content $stdOutFile, $stdErrFile | Set-Content $LogFile
+                $process = New-Object System.Diagnostics.Process
+                $process.StartInfo = $processInfo
+                $process.Start() | Out-Null
+                
+                # ”ñ“¯Šú‚Åo—Í‚ğƒtƒ@ƒCƒ‹‚ÉƒŠƒ_ƒCƒŒƒNƒg
+                $stdOutTask = $process.StandardOutput.ReadToEndAsync()
+                $stdErrTask = $process.StandardError.ReadToEndAsync()
+                
+                # ƒvƒƒZƒX‚ÌI—¹‚ğ‘Ò‹@
+                $process.WaitForExit()
+                
+                # ”ñ“¯Šúƒ^ƒXƒN‚ÌŠ®—¹‚ğ‘Ò‹@
+                [System.Threading.Tasks.Task]::WaitAll($stdOutTask, $stdErrTask)
+                
+                # o—Í‚ğƒtƒ@ƒCƒ‹‚É•Û‘¶
+                [System.IO.File]::WriteAllText($stdOutFile, $stdOutTask.Result)
+                [System.IO.File]::WriteAllText($stdErrFile, $stdErrTask.Result)
+                
+                # ƒƒOƒtƒ@ƒCƒ‹‚Éo—Í‚ğƒ}[ƒW
+                $stdOutContent = [System.IO.File]::ReadAllText($stdOutFile)
+                $stdErrContent = [System.IO.File]::ReadAllText($stdErrFile)
+                
+                # ƒƒOƒtƒ@ƒCƒ‹‚É‘‚«‚İ
+                "=== •W€o—Í ===" | Out-File -FilePath $LogFile -Encoding utf8
+                $stdOutContent | Out-File -FilePath $LogFile -Encoding utf8 -Append
+                "`n=== •W€ƒGƒ‰[o—Í ===" | Out-File -FilePath $LogFile -Encoding utf8 -Append
+                $stdErrContent | Out-File -FilePath $LogFile -Encoding utf8 -Append
+                
+                # ˆêƒtƒ@ƒCƒ‹‚ğíœ
                 Remove-Item $stdOutFile, $stdErrFile -ErrorAction SilentlyContinue
                 
-                if ($transcribeRunProcess.ExitCode -eq 0) {
-                    Write-Host "transcribeã‚³ãƒãƒ³ãƒ‰ã®å®Ÿè¡ŒãŒæˆåŠŸã—ã¾ã—ãŸ (çµ‚äº†ã‚³ãƒ¼ãƒ‰: $($transcribeRunProcess.ExitCode))."
-                    Write-Host "ãƒ­ã‚°ãƒ•ã‚¡ã‚¤ãƒ«ãŒä½œæˆã•ã‚Œã¾ã—ãŸ: $LogFile"
+                if ($process.ExitCode -eq 0) {
+                    Write-Host "transcribeƒRƒ}ƒ“ƒh‚ÌÀs‚ª¬Œ÷‚µ‚Ü‚µ‚½ (I—¹ƒR[ƒh: $($process.ExitCode))."
+                    Write-Host "ƒƒOƒtƒ@ƒCƒ‹‚ªì¬‚³‚ê‚Ü‚µ‚½: $LogFile"
+                    
+                    # ˆ—‚ªŠ®—¹‚µ‚½ƒtƒ@ƒCƒ‹‚ğTranscribeEndƒtƒHƒ‹ƒ_‚ÉˆÚ“®
+                    try {
+                        $endFilePath = Join-Path -Path $EndFolder -ChildPath $FileName
+                        Move-Item -Path $TranscribeInputFile -Destination $endFilePath -Force -ErrorAction Stop
+                        Write-Host "ˆ—Š®—¹ƒtƒ@ƒCƒ‹‚ğˆÚ“®‚µ‚Ü‚µ‚½: $endFilePath"
+                    } catch {
+                        Write-Warning "ƒtƒ@ƒCƒ‹‚ÌˆÚ“®’†‚ÉƒGƒ‰[‚ª”­¶‚µ‚Ü‚µ‚½: $($_.Exception.Message)"
+                    }
                 } else {
-                    Write-Warning "transcribeã‚³ãƒãƒ³ãƒ‰ã®å®Ÿè¡ŒãŒçµ‚äº†ã—ã¾ã—ãŸãŒã€ã‚¨ãƒ©ãƒ¼ã‚³ãƒ¼ãƒ‰ $($transcribeRunProcess.ExitCode) ã‚’è¿”ã—ã¾ã—ãŸã€‚"
-                    Write-Host "ã‚¨ãƒ©ãƒ¼ãƒ­ã‚°ã¯ $LogFile ã«è¨˜éŒ²ã•ã‚Œã¦ã„ã¾ã™ã€‚"
+                    Write-Warning "transcribeƒRƒ}ƒ“ƒh‚ÌÀs‚ªI—¹‚µ‚Ü‚µ‚½‚ªAƒGƒ‰[ƒR[ƒh $($process.ExitCode) ‚ğ•Ô‚µ‚Ü‚µ‚½B"
+                    Write-Host "ƒGƒ‰[ƒƒO‚Í $LogFile ‚É‹L˜^‚³‚ê‚Ä‚¢‚Ü‚·B"
                 }
             } catch {
-                Write-Error "transcribeã‚³ãƒãƒ³ãƒ‰ã®å®Ÿè¡Œã«å¤±æ•—ã—ã¾ã—ãŸ: $($_.Exception.Message)"
-                Write-Error "è©¦è¡Œã—ãŸã‚³ãƒãƒ³ãƒ‰ãƒ‘ã‚¹: $TranscribeCommandFullPath"
-                Write-Host "ã‚¨ãƒ©ãƒ¼ãƒ­ã‚°ã¯ $LogFile ã«è¨˜éŒ²ã•ã‚Œã¦ã„ã¾ã™ã€‚"
+                Write-Error "transcribeƒRƒ}ƒ“ƒh‚ÌÀs‚É¸”s‚µ‚Ü‚µ‚½: $($_.Exception.Message)"
+                Write-Error "s‚µ‚½ƒRƒ}ƒ“ƒhƒpƒX: $TranscribeCommandFullPath"
+                
+                # ƒGƒ‰[ƒƒbƒZ[ƒW‚ğ’¼ÚƒƒOƒtƒ@ƒCƒ‹‚É‘‚«‚İ
+                "ÀsƒGƒ‰[: $($_.Exception.Message)" | Out-File -FilePath $LogFile -Encoding utf8 -Force
+                "s‚µ‚½ƒRƒ}ƒ“ƒhƒpƒX: $TranscribeCommandFullPath" | Out-File -FilePath $LogFile -Encoding utf8 -Append -Force
+                
+                Write-Host "ƒGƒ‰[ƒƒO‚Í $LogFile ‚É‹L˜^‚³‚ê‚Ä‚¢‚Ü‚·B"
             }
             Write-Host "---"
 
         } else {
-            Write-Warning "Robocopyã§ã‚¨ãƒ©ãƒ¼ã¾ãŸã¯å•é¡ŒãŒç™ºç”Ÿã—ã¾ã—ãŸ (çµ‚äº†ã‚³ãƒ¼ãƒ‰: $($robocopyProcess.ExitCode)): $FileName"
+            Write-Warning "Robocopy‚ÅƒGƒ‰[‚Ü‚½‚Í–â‘è‚ª”­¶‚µ‚Ü‚µ‚½ (I—¹ƒR[ƒh: $($robocopyProcess.ExitCode)): $FileName"
             Write-Host "---"
         }
     } else {
-        Write-Host "ã‚¹ã‚­ãƒƒãƒ— (æ‹¡å¼µå­ '$FileExtension' ãŒå¯¾è±¡å¤–): $FileName"
+        Write-Host "ƒXƒLƒbƒv (Šg’£q '$FileExtension' ‚ª‘ÎÛŠO): $FileName"
         Write-Host "---"
     }
 }
 
-Write-Host "ã™ã¹ã¦ã®ãƒ•ã‚¡ã‚¤ãƒ«ã®å‡¦ç†ãŒå®Œäº†ã—ã¾ã—ãŸã€‚"
+Write-Host "‚·‚×‚Ä‚Ìƒtƒ@ƒCƒ‹‚Ìˆ—‚ªŠ®—¹‚µ‚Ü‚µ‚½B"
